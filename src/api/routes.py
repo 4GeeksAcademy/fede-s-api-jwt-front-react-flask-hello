@@ -39,6 +39,7 @@ def signup():
 
             email = request.json.get('email')
             password = request.json.get('password')
+            is_active = request.json.get('is_active')
 
             if not email or not password:
                 return jsonify({"msg": "Please, fill up all the inputs."}), 400
@@ -51,14 +52,20 @@ def signup():
             password_hash = bcrypt.generate_password_hash(
                 password).decode("utf-8")
 
-            new_user = User(email=email, password=password_hash)
+            new_user = User(email=email, password=password_hash, is_active=is_active)
 
             db.session.add(new_user)
             db.session.commit()
 
+            expires = timedelta(days=1)
+
+            user_id = new_user.id
+            access_token = create_access_token(identity=str(user_id), expires_delta=expires)
+
             return jsonify({
                 "msg": "User succesfully created!",
-                "user": new_user.serialize()
+                "user": new_user.serialize(),
+                "access_token": access_token
             }), 201
         except:
             return jsonify({"msg": "There was an error in your request, check if the Databse is running."}), 500
@@ -93,8 +100,10 @@ def login():
 
             return jsonify({
                 "msg": "Login successful",
-                "access_token": access_token
+                "access_token": access_token,
+                "email": email
             }), 200
+            
 
         else:
             return jsonify({"msg": "Invalid user or password."}), 401
@@ -115,7 +124,8 @@ def home():
         for user in users:
             user_dict = {
                 "id": user.id,
-                "email": user.email
+                "email": user.email,
+                "is_active": user.is_active
             }
             user_list.append(user_dict)
 
