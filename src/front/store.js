@@ -1,3 +1,5 @@
+const apiUrl = import.meta.env.VITE_BACKEND_URL;
+
 export const initialStore = () => {
   return {
     message: null,
@@ -16,9 +18,10 @@ export const initialStore = () => {
     users: [],
     logged_users: [],
     new_user: [],
+    token: null,
+    user: {},
   };
 };
-
 
 export default function storeReducer(store, action = {}) {
   switch (action.type) {
@@ -38,27 +41,24 @@ export default function storeReducer(store, action = {}) {
         ),
       };
 
-    case "logged_in":
-      const email = action.payload;
-
+    case "login_success":
       return {
         ...store,
-        logged_users: [...store.logged_users, email],
+        token: action.payload.token,
+        user: action.payload.user,
       };
 
-      case "signup":
-
+    case "signup_success":
       return {
         ...store,
-        new_user: [...store.new_user, action.payload.user],
+        token: action.payload.token,
+        user: action.payload.user,
       };
 
-    case "get_users":
-      const users = action.payload;
-
+    case "getUsers_success":
       return {
         ...store,
-        users: store.users
+        users: action.payload.users,
       };
 
     default:
@@ -66,3 +66,73 @@ export default function storeReducer(store, action = {}) {
   }
 }
 
+export const login = async (email, password, dispatch) => {
+  try {
+    const resp = await fetch(`${apiUrl}api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.msg || "Error de autenticación");
+
+    dispatch({
+      type: "login_success",
+      payload: { token: data.access_token, user: data.email },
+    });
+    localStorage.setItem("token", data.access_token);
+    return true;
+  } catch (error) {
+    console.error("No se pudo ingresar: ", error);
+    return false;
+  }
+};
+
+export const signup = async (name, email, password, dispatch) => {
+  try {
+    const resp = await fetch(`${apiUrl}api/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.msg || "Error de registro");
+
+    dispatch({
+      type: "signup_success",
+      payload: { token: data.access_token, user: data.user },
+    });
+    localStorage.setItem("token", data.access_token);
+
+    return true;
+  } catch (error) {
+    console.error("No se pudo registrar: ", error);
+  }
+};
+
+export const getUsers = async (dispatch) => {
+  try {
+    const resp = await fetch(`${apiUrl}api/private`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) throw new Error(data.msg || "Error al obtener los datos");
+
+    dispatch({
+      type: "getUsers_success",
+      payload: { users: data.users },
+    });
+
+    return true;
+  } catch (error) {
+    console.error("No se pudo recuperar los datos: ", error);
+  }
+};
